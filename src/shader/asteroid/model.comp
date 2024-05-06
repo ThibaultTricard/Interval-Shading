@@ -1,0 +1,146 @@
+#version 450
+
+layout( local_size_x = 32) in;
+
+layout( set = 0, binding = 0 ) uniform UniformBuffer {
+  mat4 view;
+  mat4 persp;
+  float nearplane;
+  float time;
+  float dt;
+};
+
+
+layout( set = 0, binding = 3 ) buffer pos{
+  mat4 models[];
+};
+
+
+// Hash without Sine
+// MIT License...
+/* Copyright (c)2014 David Hoskins.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.*/
+
+//----------------------------------------------------------------------------------------
+///////////////////////////////////////////////
+//prng
+///////////////////////////////////////////////
+
+int N = 15487469;
+int x_;
+void seed(int s){x_ = s;}
+int next() { x_ *= 3039177861; x_ = x_ % N;return x_; }
+float uni_0_1() {return  float(next()) / float(N);}
+float uni(float min, float max){ return min + (uni_0_1() * (max - min));}
+
+
+int morton(int x, int y)
+{
+  int z = 0;
+  for (int i = 0 ; i < 32* 4 ; i++) {
+    z |= ((x & (1 << i)) << i) | ((y & (1 << i)) << (i + 1));
+  }
+  return z;
+}
+
+
+//----------------------------------------------------------------------------------------
+mat4 PrepareTranslationMatrix(float x,
+                              float y,
+                              float z) {
+  mat4 translation_matrix = mat4(
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    x, y, z, 1.0
+  );
+
+  return translation_matrix;
+}
+
+
+mat4 PrepareScalingMatrix(float x,
+                          float y,
+                          float z) {
+  mat4 scaling_matrix = mat4(
+    x,   0.0, 0.0, 0.0,
+    0.0,   y, 0.0, 0.0,
+    0.0, 0.0,   z, 0.0,
+    0.0, 0.0, 0.0, 1.0
+  );
+  return scaling_matrix;
+}
+
+
+float rand(){
+  return uni_0_1();
+}
+
+
+float range_max = 12.5 ;
+float range_min = 0.1;
+float scale_max = 3.0;
+float scale_min = 1.0;
+
+void main() {
+	uint Lxid = gl_GlobalInvocationID.x;
+
+  seed(int(Lxid+10000.0));
+
+  seed(morton(int(Lxid),next()));
+  
+
+  float ct = float(rand())* 2.0 - 1.0;
+  float st = sqrt(1.0-ct*ct);
+  float phi = 2.0*3.14159265 * float(rand());
+  float r = sqrt(rand());
+
+  float range = range_max-range_min;
+
+  float x = cos(phi) * st * (r * range + range_min);
+  float y = sin(phi) * st * (r * range + range_min); 
+  float z = ct * (r * range + range_min);
+
+  float scale  = rand() * (scale_max - scale_min) +scale_min;
+  
+  mat4 t = PrepareTranslationMatrix(x *range,y*range,z*range);
+  mat4 s = PrepareScalingMatrix(scale,scale,scale) ;
+
+
+  float rotation_speed = 0.2 * (rand()*2.0 -1.0);
+  if(abs(rotation_speed)< 0.01){
+    rotation_speed = sign(rotation_speed)*0.01;
+  }
+
+  float theta = time * rotation_speed;
+
+  
+
+  float co = cos(theta);
+  float si = sin(theta);
+  mat4 rotate = mat4(
+      vec4(co, 0, -si, 0),
+      vec4(0, 1, 0, 0),
+      vec4(si, 0, co, 0),
+      vec4(0, 0, 0, 1)
+  );
+
+  models[Lxid] = rotate *  t * s;
+}
