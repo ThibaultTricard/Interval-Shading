@@ -5,7 +5,7 @@ This repository contains the source code for the article "Interval Shading: usin
 
 ## Dependencies
 
-This project can be run on Windows 10 or newer and on Ubuntu 22 or newer, your GPU need to be mesh shader compatible (RTX 20770 or newer for NVidia)
+This project can be run on Windows 10 (or newer) and on Ubuntu 22 (or newer), your GPU need to be mesh shader compatible (RTX 20770 or newer for NVidia)
 To compile this project you need to have the following depencies installed :
   - a C++20 compiler
   - CMake
