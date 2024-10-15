@@ -29,8 +29,8 @@ vec3 hue2rgb(float hue)
 void main()
 {
 
-    vec4 minpoint = vec4(A.xy,1/A.z,1.0);
-    vec4 maxpoint = vec4(A.xy,1/A.w,1.0);
+    vec4 minpoint = vec4(A.xy,A.z,1.0);
+    vec4 maxpoint = vec4(A.xy,A.w,1.0);
    
 
     vec4 a = inverse(persp * view)*minpoint;
@@ -42,10 +42,10 @@ void main()
     vec3 color = 1 - hue2rgb(hash11(float(I))*2.0*3.14159265);
 
     if(mode == 1){
-        outColor = vec4(vec3(color),1.0/A.z);
+        outColor = vec4(vec3(color),A.z);
     }
     else{
-        outColor = vec4(vec3(absorbtion),1.0/A.z);
+        outColor = vec4(vec3(absorbtion),A.z);
     }
     
 

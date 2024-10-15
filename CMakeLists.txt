@@ -72,8 +72,6 @@ target_link_libraries( bunny LavaCake )
 
 
 
-
-
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid)
 clearShader()
 addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/asteroid/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid/interval.frag.spv spv1.4)
@@ -83,3 +81,16 @@ add_executable( asteroids  "./src/asteroids.cpp")
 set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
 AutoSPIRV(asteroids)
 target_link_libraries( asteroids LavaCake )
+
+
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet)
+clearShader()
+addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/interval.frag.spv spv1.4)
+addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/mesh.mesh ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/mesh.mesh.spv spv1.4)
+addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/postProcess.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/postProcess.frag.spv spv1.4)
+addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/postProcess.vert ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/postProcess.vert.spv spv1.4)
+add_executable( jet  "./src/jet.cpp")
+set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
+AutoSPIRV(jet)
+target_link_libraries( jet LavaCake )
+

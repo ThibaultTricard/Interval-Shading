@@ -1,0 +1,421 @@
+#version 450
+#extension GL_EXT_mesh_shader : require
+
+
+layout (location=0) out vec4 A[];
+layout (location=3) out int I[];
+
+#define X 1
+
+layout(local_size_x = X, local_size_y = 1, local_size_z = 1) in;
+layout(triangles, max_vertices = 80, max_primitives = 80) out;
+
+layout( set = 0, binding = 1) buffer vertices{
+  vec4 coords[];
+};
+
+struct tetIndices_t{
+  uint index[4];
+};
+
+layout( set = 0, binding = 2 ) buffer indices{
+  tetIndices_t tet[];
+};
+
+
+struct tet_t{
+  vec4 pos[4];
+};
+
+struct prism_t{
+  vec4 pos[6];
+};
+
+layout( set = 0, binding = 0 ) uniform UniformBuffer {
+  mat4 model;
+  mat4 view;
+  mat4 persp;
+  float nearplane;
+};
+
+
+ivec2 edges[] = {
+  ivec2(0,1),  //0
+  ivec2(0,2),  //1
+  ivec2(0,3),  //2
+  ivec2(1,2),  //3
+  ivec2(1,3),  //4
+  ivec2(2,3)   //5
+};
+
+
+struct clipedTet_t{
+    tet_t[3] tets;
+    int tetCount;
+};
+
+
+float cross2D(vec2 v1, vec2 v2)
+{
+    return v1.x * v2.y - v1.y * v2.x;
+}
+
+clipedTet_t clipTet(tet_t tet, float near){
+    bool clip[4];
+    uint clip_count = 0; 
+    
+    clip[0] = tet.pos[0].z < near;
+    clip_count+= int(clip[0]);
+    clip[1] = tet.pos[1].z < near;
+    clip_count+= int(clip[1]);
+    clip[2] = tet.pos[2].z < near;
+    clip_count+= int(clip[2]);
+    clip[3] = tet.pos[3].z < near;
+    clip_count+= int(clip[3]);
+
+    clipedTet_t ctet;
+    if(clip_count == 0){
+        ctet.tetCount = 1;
+        ctet.tets[0] = tet;
+        return ctet;
+    }
+    if(clip_count == 4){
+        ctet.tetCount = 0;
+        return ctet;
+    }
+
+    bool edgeClip[6];
+    vec4 clipPoint[6];
+    vec4 otherPoint[6];
+    for(int i = 0; i< 6; i++ ){
+        int i0 =  edges[i][0];
+        int i1 =  edges[i][1];
+        edgeClip[i] = (clip[i0] && !clip[i1]) || (!clip[i0] && clip[i1]);
+        if(edgeClip[i]){
+            vec4 a = clip[i0] ? tet.pos[i0] : tet.pos[i1];
+            vec4 b = clip[i0] ? tet.pos[i1] : tet.pos[i0]; 
+
+            float t = (near - a.z) / (b.z - a.z);
+            clipPoint[i] = a + (b-a)*t;
+            otherPoint[i] = b;
+        }
+    }
+
+    
+    if(clip_count == 1){
+        //one clip : prism
+        ctet.tetCount = 3;
+        prism_t p;
+        int count = 0;
+        for(int i = 0; i< 6; i++ ){
+            if(edgeClip[i]){
+                p.pos[count] = clipPoint[i];
+                p.pos[count+3] = otherPoint[i];
+                count ++;
+            }
+        }
+        
+        // tet 1
+        ctet.tets[0].pos[0] = p.pos[0];
+        ctet.tets[0].pos[1] = p.pos[1];
+        ctet.tets[0].pos[2] = p.pos[2];
+        ctet.tets[0].pos[3] = p.pos[3];
+
+        // tet 1
+        ctet.tets[1].pos[0] = p.pos[1];
+        ctet.tets[1].pos[1] = p.pos[2];
+        ctet.tets[1].pos[2] = p.pos[3];
+        ctet.tets[1].pos[3] = p.pos[5];
+
+        // tet 2
+        ctet.tets[2].pos[0] = p.pos[1];
+        ctet.tets[2].pos[1] = p.pos[3];
+        ctet.tets[2].pos[2] = p.pos[4];
+        ctet.tets[2].pos[3] = p.pos[5];
+    }
+    else if(clip_count == 2){
+        //two clip : prism
+        ctet.tetCount = 3;
+        prism_t p;
+        int countNoClip = 0;
+        int noclip[2];
+        int cliped[2];
+        int countClip = 0;
+        for(int i = 0; i< 4; i++ ){
+            if(!clip[i]){
+                p.pos[countNoClip*3] = tet.pos[i];
+                noclip[countNoClip] = i;
+                countNoClip ++;
+            }else{
+                cliped[countClip] = i;
+                countClip ++;
+            }
+        }
+
+        if(cliped[1]<cliped[0]){
+            int tmp = cliped[0];
+            cliped[0] = cliped[1];
+            cliped[1] = tmp;
+        }
+
+        for(int i = 0; i< 6; i++ ){
+            if(edgeClip[i]){
+               bool eNoClip1 = edges[i][0] == noclip[1] || edges[i][1] == noclip[1];
+               bool eCliped1 = edges[i][0] == cliped[1] || edges[i][1] == cliped[1];
+
+               int index = int(eNoClip1) * 3  +  int(eCliped1) +1; 
+
+               p.pos[index] = clipPoint[i];
+            }
+        }
+
+        // tet 0
+        ctet.tets[0].pos[0] = p.pos[0];
+        ctet.tets[0].pos[1] = p.pos[1];
+        ctet.tets[0].pos[2] = p.pos[2];
+        ctet.tets[0].pos[3] = p.pos[3];
+
+        // tet 1
+        ctet.tets[1].pos[0] = p.pos[1];
+        ctet.tets[1].pos[1] = p.pos[2];
+        ctet.tets[1].pos[2] = p.pos[3];
+        ctet.tets[1].pos[3] = p.pos[5];
+
+        // tet 2
+        ctet.tets[2].pos[0] = p.pos[1];
+        ctet.tets[2].pos[1] = p.pos[3];
+        ctet.tets[2].pos[2] = p.pos[4];
+        ctet.tets[2].pos[3] = p.pos[5];
+
+    }
+    else if(clip_count == 3){
+        //three clip : prism
+        ctet.tetCount = 1;
+
+        int count = 0;
+        for(int i = 0; i< 6; i++ ){
+            if(edgeClip[i]){
+                ctet.tets[0].pos[count] = clipPoint[i];
+                count ++;
+            }
+        }
+        for(int i = 0; i< 4; i++ ){
+            if(!clip[i]){
+                ctet.tets[0].pos[count] = tet.pos[i];
+            }
+        }
+    }
+    
+
+    return ctet;
+}
+
+
+//Line intersection algorithm
+//Based off Andre LeMothe's algorithm in "Tricks of the Windows Game Programming Gurus".
+bool lineIntersection(vec2 L1A, vec2 L1B, vec2 L2A, vec2 L2B, out vec2 p, out vec2 ts)
+{
+    //Line 1 Vector
+    vec2 v1 = L1B - L1A;
+    
+    //Line 2 Vector
+    vec2 v2 = L2B - L2A;
+    
+    //Cross of vectors
+    float d = cross2D(v1,v2);
+    
+    //Difference between start points
+    vec2 LA_delta = L1A - L2A;
+    
+    //Percentage v1 x LA_delta is along v1 x v2
+    float s = cross2D(v1,LA_delta) / d;
+    
+    //Percentage v2 x LA_delta is along v1 x v2
+    float t = cross2D(v2,LA_delta) / d;
+    
+    //Do segments intersect?
+    //Bounds test
+    if (s >= 0.0 && s <= 1.0 && t >= 0.0 && t <= 1.0)
+    {
+        //Projection
+        p = vec2(L1A.x + (t * v1.x), L1A.y + (t * v1.y)); 
+        ts = vec2(t,s);
+        return true;
+    }
+    return false;
+}
+
+struct proxy_t{
+    vec4[5] pos;
+    int point_count;
+};
+
+ivec2 potential_projection[] = { 
+  ivec2( 0 , 3 ),
+  ivec2( 1 , 2 ),
+  ivec2( 2 , 1 ),
+  ivec2( 3 , 0 ),
+};
+
+#define potentialProjection 4
+
+
+ivec2 potential_intersection[] = { 
+  ivec2( 0 , 5 ),
+  ivec2( 1 , 4 ),
+  ivec2( 2 , 3 ),
+};
+#define potentialCrossing 3
+//index of vertices of each face of a tet
+uvec3 faces[] = {
+  uvec3(0,1,2),
+  uvec3(0,1,3),
+  uvec3(0,2,3),
+  uvec3(1,2,3)
+};
+
+#define DEBUGGEOM false
+
+void main(){
+    uint tetIndex;
+    tetIndices_t indices =  tet[gl_WorkGroupID.x];
+
+    tet_t tet;
+    tet.pos[0] = view * model * coords[indices.index[0]];
+    tet.pos[1] = view * model * coords[indices.index[1]];
+    tet.pos[2] = view * model * coords[indices.index[2]];
+    tet.pos[3] = view * model * coords[indices.index[3]];
+
+    //clip test
+    float bias = nearplane*0.1; 
+    clipedTet_t ctet = clipTet(tet,nearplane + bias);
+    
+    
+if(DEBUGGEOM){
+    SetMeshOutputsEXT(ctet.tetCount * 4 , ctet.tetCount*4);
+    for(int i = 0; i < ctet.tetCount; i++){
+        int index = i * 4;
+        for(int j = 0; j < 4; j ++){
+            ctet.tets[i].pos[j] = persp * ctet.tets[i].pos[j];
+            gl_MeshVerticesEXT[index+j].gl_Position  = ctet.tets[i].pos[j] / ctet.tets[i].pos[j].w;
+        }
+        
+
+        gl_PrimitiveTriangleIndicesEXT[index]   = uvec3(0,1,2) + index;
+        gl_PrimitiveTriangleIndicesEXT[index+1] = uvec3(0,1,3) + index;
+        gl_PrimitiveTriangleIndicesEXT[index+2] = uvec3(0,2,3) + index;
+        gl_PrimitiveTriangleIndicesEXT[index+3] = uvec3(1,2,3) + index;
+    }
+}
+else{
+    proxy_t proxies[3];
+    for(int i = 0; i < ctet.tetCount; i++){
+        
+        //project all point
+        for(int j = 0; j < 4; j ++){
+            ctet.tets[i].pos[j] = persp * ctet.tets[i].pos[j];
+            ctet.tets[i].pos[j] = ctet.tets[i].pos[j]/ctet.tets[i].pos[j].w;
+        }
+        
+        int nb_triangle = 0;
+
+
+        // First test projection : 
+        for(int j = 0; j < potentialProjection; j ++){
+            vec4 p = ctet.tets[i].pos[potential_projection[j][0]];
+            
+            
+            uint faceID = potential_projection[j][1];
+            vec4 a = ctet.tets[i].pos[faces[faceID][0]];
+            vec4 b = ctet.tets[i].pos[faces[faceID][1]];
+            vec4 c = ctet.tets[i].pos[faces[faceID][2]];
+
+            vec2 v0 = b.xy - a.xy; 
+            vec2 v1 = c.xy - b.xy; 
+            vec2 v2 = a.xy - c.xy;
+
+            float s0 = cross2D ( p.xy - a.xy, v0);
+            float s1 = cross2D ( p.xy - b.xy, v1);
+            float s2 = cross2D ( p.xy - c.xy, v2);
+
+            bool isInside = (s0 >= 0 && s1 >= 0 && s2 >= 0) || (s0 <= 0 && s1 <= 0 && s2 <= 0);
+            //inside with borders
+            if(isInside){
+
+                float s = s0+s1+s2;
+                float lambda0 = s1/s;
+                float lambda1 = s2/s;
+                float lambda2 = s0/s;
+
+                float z_ = ( lambda0 *a.z + lambda1 * b.z + lambda2 * c.z);
+
+                nb_triangle = 3;
+
+                proxies[i].pos[0] = a.xyzz;
+                proxies[i].pos[1] = b.xyzz;
+                proxies[i].pos[2] = c.xyzz;
+                
+                proxies[i].pos[3] = p.z < z_ ? vec4(p.xyz,z_) : vec4(p.xy,z_,p.z);
+                proxies[i].point_count = 4;
+            }
+        }
+
+        if(nb_triangle!=0){
+            continue;
+        }
+        
+
+        for(int j =0; j < potentialCrossing; j++){
+            vec4 l0a = ctet.tets[i].pos[edges[potential_intersection[j][0]][0]];
+            vec4 l0b = ctet.tets[i].pos[edges[potential_intersection[j][0]][1]];
+            vec4 l1a = ctet.tets[i].pos[edges[potential_intersection[j][1]][0]];
+            vec4 l1b = ctet.tets[i].pos[edges[potential_intersection[j][1]][1]];
+
+            vec2 p;
+            vec2 t;
+            if(lineIntersection(l0a.xy,l0b.xy,l1a.xy,l1b.xy,p,t)){
+
+                
+                float z0 = (l0a.z) *(1.0-t[0]) + (l0b.z) * t[0] ;
+                float z1 = (l1a.z) *(1.0-t[1]) + (l1b.z) * t[1] ;
+
+
+                proxies[i].pos[0] = l0a.xyzz;
+                proxies[i].pos[1] = l1a.xyzz;
+                proxies[i].pos[2] = l0b.xyzz;
+                proxies[i].pos[3] = l1b.xyzz;
+                proxies[i].pos[4] = z0 < z1 ? vec4(p.xy,z0,z1) : vec4(p.xy,z1,z0);
+                proxies[i].point_count = 5;
+                nb_triangle = 4;
+            }
+        }
+    }
+
+    int vertex_counter = 0;
+    int triangle_counter = 0;
+    for(int i = 0; i < ctet.tetCount; i++){
+
+        for(int j = 0 ; j < proxies[i].point_count; j ++){
+            gl_MeshVerticesEXT[vertex_counter + j].gl_Position  = vec4(proxies[i].pos[j].xy,0,1);
+            A[vertex_counter + j] = vec4(proxies[i].pos[j].xy,proxies[i].pos[j].z,proxies[i].pos[j].w);
+            I[vertex_counter + j] = int(gl_WorkGroupID.x);
+        }
+
+        if(proxies[i].point_count == 4){
+            gl_PrimitiveTriangleIndicesEXT[triangle_counter++]   = uvec3(0,1,3) + vertex_counter;
+            gl_PrimitiveTriangleIndicesEXT[triangle_counter++]   = uvec3(1,2,3) + vertex_counter;
+            gl_PrimitiveTriangleIndicesEXT[triangle_counter++]   = uvec3(2,0,3) + vertex_counter;
+        }
+        else if(proxies[i].point_count == 5){
+            gl_PrimitiveTriangleIndicesEXT[triangle_counter++]   = uvec3(0,1,4) + vertex_counter;
+            gl_PrimitiveTriangleIndicesEXT[triangle_counter++]   = uvec3(1,2,4) + vertex_counter;
+            gl_PrimitiveTriangleIndicesEXT[triangle_counter++]   = uvec3(2,3,4) + vertex_counter;
+            gl_PrimitiveTriangleIndicesEXT[triangle_counter++]   = uvec3(3,0,4) + vertex_counter;
+        }
+        vertex_counter += proxies[i].point_count;
+    }
+
+    SetMeshOutputsEXT(vertex_counter ,triangle_counter);
+}
+
+}

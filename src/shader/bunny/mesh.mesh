@@ -273,6 +273,7 @@ uvec3 faces[] = {
   uvec3(1,2,3)
 };
 
+
 void main(){
     uint tetIndex;
     tetIndices_t indices =  tet[gl_WorkGroupID.x];
@@ -288,7 +289,6 @@ void main(){
     clipedTet_t ctet = clipTet(tet,nearplane + bias);
     
     
-
     proxy_t proxies[3];
     for(int i = 0; i < ctet.tetCount; i++){
         
@@ -328,7 +328,7 @@ void main(){
                 float lambda1 = s2/s;
                 float lambda2 = s0/s;
 
-                float z_ = 1.0/( lambda0 * 1.0/a.z + lambda1 * 1.0/b.z + lambda2 * 1.0/c.z);
+                float z_ = ( lambda0 * a.z + lambda1 * b.z + lambda2 * c.z);
 
                 nb_triangle = 3;
 
@@ -357,15 +357,15 @@ void main(){
             if(lineIntersection(l0a.xy,l0b.xy,l1a.xy,l1b.xy,p,t)){
 
                 
-                float z0 = (1.0/l0a.z) *(1.0-t[0]) + (1.0/l0b.z) * t[0] ;
-                float z1 = (1.0/l1a.z) *(1.0-t[1]) + (1.0/l1b.z) * t[1] ;
+                float z0 = (l0a.z) *(1.0-t[0]) + (l0b.z) * t[0] ;
+                float z1 = (l1a.z) *(1.0-t[1]) + (l1b.z) * t[1] ;
 
 
                 proxies[i].pos[0] = l0a.xyzz;
                 proxies[i].pos[1] = l1a.xyzz;
                 proxies[i].pos[2] = l0b.xyzz;
                 proxies[i].pos[3] = l1b.xyzz;
-                proxies[i].pos[4] = z0 > z1 ? vec4(p.xy,1./z0,1./z1) : vec4(p.xy,1./z1,1./z0);
+                proxies[i].pos[4] = z0 < z1 ? vec4(p.xy,z0,z1) : vec4(p.xy,z1,z0);
                 proxies[i].point_count = 5;
                 nb_triangle = 4;
             }
@@ -378,7 +378,7 @@ void main(){
 
         for(int j = 0 ; j < proxies[i].point_count; j ++){
             gl_MeshVerticesEXT[vertex_counter + j].gl_Position  = vec4(proxies[i].pos[j].xy,0,1);
-            A[vertex_counter + j] = vec4(proxies[i].pos[j].xy,1.0/proxies[i].pos[j].z,1.0/proxies[i].pos[j].w);
+            A[vertex_counter + j] = vec4(proxies[i].pos[j].xy,proxies[i].pos[j].z,proxies[i].pos[j].w);
         }
 
         if(proxies[i].point_count == 4){

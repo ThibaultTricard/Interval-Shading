@@ -57,8 +57,8 @@ float map(vec3 V)
 void main()
 {
 
-    vec4 minpoint = vec4(A.xy,1.0/A.z,1.0);
-    vec4 maxpoint = vec4(A.xy,1.0/A.w,1.0);
+    vec4 minpoint = vec4(A.xy,A.z,1.0);
+    vec4 maxpoint = vec4(A.xy,A.w,1.0);
    
     mat4 model = models[I];
     

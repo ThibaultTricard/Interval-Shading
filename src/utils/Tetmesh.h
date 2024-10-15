@@ -21,7 +21,7 @@ public:
 
 
 
-Tetmesh load_msh(std::string filename){
+Tetmesh load_msh(std::string filename, bool normalize =true){
     std::ifstream infile(filename);
 
     std::vector<LavaCake::vec4f> vertices;
@@ -67,23 +67,24 @@ Tetmesh load_msh(std::string filename){
             indices.push_back(i);
         }
     }
+    if(normalize){
+        LavaCake::vec4f A = bbox.A();
+        LavaCake::vec4f B = bbox.B();
 
-    LavaCake::vec4f A = bbox.A();
-    LavaCake::vec4f B = bbox.B();
+        A[3] = 0;
+        B[3] = 0;
 
-    A[3] = 0;
-    B[3] = 0;
+        LavaCake::vec4f c = (B + A) / 2.0f;
 
-    LavaCake::vec4f c = (B + A) / 2.0f;
+        LavaCake::vec4f d = B-A;
+        float s = fmax(fmax(d[0],d[1]),d[2]);
 
-    LavaCake::vec4f d = B-A;
-    float s = fmax(fmax(d[0],d[1]),d[2]);
+        for (int i = 0; i < vertices.size(); i++){
 
-    for (int i = 0; i < vertices.size(); i++){
+            vertices[i] = (vertices[i] - c)  / s  ;
+            vertices[i][3] = 1.0f;
 
-        vertices[i] = (vertices[i] - c)  / s  ;
-        vertices[i][3] = 1.0f;
-
+        }
     }
     return Tetmesh(vertices,indices);
 }   
