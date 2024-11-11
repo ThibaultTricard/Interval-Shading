@@ -9,8 +9,7 @@ using namespace LavaCake;
 using namespace LavaCake::Geometry;
 using namespace LavaCake::Framework;
 #include <chrono>
-
-
+#undef near
 
 vec2d mousepos = vec2d({0,0});
 
