@@ -34,4 +34,4 @@
 # Build folder
 build
 /.vs
-/out/install/x64-debug
+/out
