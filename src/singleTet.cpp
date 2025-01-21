@@ -136,11 +136,11 @@ int main() {
 	viewproj.addVariable("model", transpose(model));
 	viewproj.addVariable("view", transpose(view));
 
-	float near = 0.1f;
-	auto perspective = PreparePerspectiveProjectionMatrix(float(size.width)/float(size.height),80.0f,near,10.0f);
+	float nearPlane = 0.1f;
+	auto perspective = PreparePerspectiveProjectionMatrix(float(size.width)/float(size.height),80.0f,nearPlane,10.0f);
   	perspective = transpose(perspective);
   	viewproj.addVariable("perpective", perspective );
-	viewproj.addVariable("near", near );
+	viewproj.addVariable("nearPlane", nearPlane );
 	viewproj.addVariable("tetnumber", int(mesh.m_indices.size()) );
 
 	viewproj.end();

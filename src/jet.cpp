@@ -156,8 +156,8 @@ int main() {
 	
 	
 	auto view = trackball.getview();
-	float near = 0.1f;
-	auto perspective = PreparePerspectiveProjectionMatrix(float(size.width)/float(size.height),80.0f,near,1000.0f);
+	float nearPlane = 0.1f;
+	auto perspective = PreparePerspectiveProjectionMatrix(float(size.width)/float(size.height),80.0f,nearPlane,1000.0f);
 	perspective = transpose(perspective);
 
 	std::vector<UniformBuffer> viewprojs(meshes.size());
@@ -172,7 +172,7 @@ int main() {
 		
 		
 		viewprojs[i].addVariable("perpective", perspective );
-		viewprojs[i].addVariable("near", near );
+		viewprojs[i].addVariable("nearPlane", nearPlane );
 
 		viewprojs[i].end();
 	}
