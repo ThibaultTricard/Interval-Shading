@@ -58,3 +58,23 @@ can be run by using
 In all the examples, the mouse can be used to move around the objects and the keyboard's arrow can be used to move the camera.
 In the jet example, the 'o' key start the animation and the 'p' key pauses it. 
 
+## Citing 
+
+@article{tricard:hal-04561269,
+  TITLE = {{Interval Shading: using Mesh Shaders to generate shading intervals for volume rendering}},
+  AUTHOR = {Tricard, Thibault},
+  URL = {https://hal.science/hal-04561269},
+  JOURNAL = {{Proceedings of the ACM on Computer Graphics and Interactive Techniques}},
+  PUBLISHER = {{ACM}},
+  VOLUME = {7},
+  NUMBER = {3},
+  PAGES = {1-11},
+  YEAR = {2024},
+  MONTH = Apr,
+  DOI = {10.1145/3675380},
+  KEYWORDS = {Mesh Shading ; Rendering ; Rasterization},
+  PDF = {https://hal.science/hal-04561269v3/file/Interval_Shader_HPG2024-2.pdf},
+  HAL_ID = {hal-04561269},
+  HAL_VERSION = {v3},
+}
+
