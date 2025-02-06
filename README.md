@@ -59,7 +59,7 @@ In all the examples, the mouse can be used to move around the objects and the ke
 In the jet example, the 'o' key start the animation and the 'p' key pauses it. 
 
 ## Citing 
-
+```
 @article{tricard:hal-04561269,
   TITLE = {{Interval Shading: using Mesh Shaders to generate shading intervals for volume rendering}},
   AUTHOR = {Tricard, Thibault},
@@ -77,4 +77,4 @@ In the jet example, the 'o' key start the animation and the 'p' key pauses it.
   HAL_ID = {hal-04561269},
   HAL_VERSION = {v3},
 }
-
+```
