@@ -5,94 +5,116 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-add_subdirectory(LavaCake)    
+set(LAVACAKE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(LavaCake)
 
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/envmaps DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/objects DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders)
 
 
+add_compile_definitions(PROJECT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/")
+
+# --- External dependencies (glfw, glm, imgui, stb) ---
+include(FetchContent)
+
+if(WIN32)
+    FetchContent_Declare(
+        glfw
+        GIT_REPOSITORY https://github.com/glfw/glfw.git
+        GIT_TAG        3.4
+        GIT_SHALLOW    TRUE
+    )
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(glfw)
+
+    FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG        1.0.1
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(glm)
+else()
+    find_package(glfw3 REQUIRED)
+    find_package(glm REQUIRED)
+endif()
+
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.91.6
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui_glfw STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+)
+target_include_directories(imgui_glfw PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+)
+target_link_libraries(imgui_glfw PUBLIC glfw)
+
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG        master
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(stb)
+add_library(stb_image INTERFACE)
+target_include_directories(stb_image INTERFACE ${stb_SOURCE_DIR})
+
+# --- Executables ---
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/crystal)
-clearShader()
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/crystal/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/crystal/interval.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/crystal/mesh.mesh ${CMAKE_CURRENT_BINARY_DIR}/shaders/crystal/mesh.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/crystal/postProcess.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/crystal/postProcess.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/crystal/postProcess.vert ${CMAKE_CURRENT_BINARY_DIR}/shaders/crystal/postProcess.vert.spv spv1.4)
 add_executable( crystal  "./src/crystal.cpp")
 set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
-AutoSPIRV(crystal)
-target_link_libraries( crystal LavaCake )
+target_link_libraries( crystal LavaCake glfw glm::glm imgui_glfw stb_image )
 
 
 
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/singleTet)
-clearShader()
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/singleTet/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/singleTet/interval.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/singleTet/mesh.mesh ${CMAKE_CURRENT_BINARY_DIR}/shaders/singleTet/mesh.mesh.spv spv1.4)
-
-add_compile_definitions(PROJECT_ROOT="${CMAKE_CURRENT_BINARY_DIR}/")
 add_executable( singleTet  "./src/singleTet.cpp")
 set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
-AutoSPIRV(singleTet)
-target_link_libraries( singleTet LavaCake )
-
+target_link_libraries( singleTet LavaCake glfw glm::glm )
 
 
 
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/armadillo)
-clearShader()
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/armadillo/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/armadillo/interval.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/armadillo/mesh.mesh ${CMAKE_CURRENT_BINARY_DIR}/shaders/armadillo/mesh.mesh.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/armadillo/postProcess.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/armadillo/postProcess.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/armadillo/postProcess.vert ${CMAKE_CURRENT_BINARY_DIR}/shaders/armadillo/postProcess.vert.spv spv1.4)
 add_executable( armadillo  "./src/armadillo.cpp")
 set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
-AutoSPIRV(armadillo)
-target_link_libraries( armadillo LavaCake )
-
+target_link_libraries( armadillo LavaCake glfw glm::glm imgui_glfw )
 
 
 
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/bunny)
-clearShader()
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/bunny/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/bunny/interval.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/bunny/mesh.mesh ${CMAKE_CURRENT_BINARY_DIR}/shaders/bunny/mesh.mesh.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/bunny/postProcess.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/bunny/postProcess.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/bunny/postProcess.vert ${CMAKE_CURRENT_BINARY_DIR}/shaders/bunny/postProcess.vert.spv spv1.4)
 add_executable( bunny  "./src/bunny.cpp")
 set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
-AutoSPIRV(bunny)
-target_link_libraries( bunny LavaCake )
+target_link_libraries( bunny LavaCake glfw glm::glm imgui_glfw )
 
 
 
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid)
-clearShader()
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/asteroid/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid/interval.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/asteroid/mesh.mesh ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid/mesh.mesh.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/asteroid/model.comp ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid/model.comp.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/asteroid/postProcess.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid/postProcess.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/asteroid/postProcess.vert ${CMAKE_CURRENT_BINARY_DIR}/shaders/asteroid/postProcess.vert.spv spv1.4)
 add_executable( asteroids  "./src/asteroids.cpp")
 set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
-AutoSPIRV(asteroids)
-target_link_libraries( asteroids LavaCake )
+target_link_libraries( asteroids LavaCake glfw glm::glm )
 
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet)
-clearShader()
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/interval.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/interval.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/mesh.mesh ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/mesh.mesh.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/postProcess.frag ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/postProcess.frag.spv spv1.4)
-addShader(${CMAKE_CURRENT_SOURCE_DIR}/src/shader/jet/postProcess.vert ${CMAKE_CURRENT_BINARY_DIR}/shaders/jet/postProcess.vert.spv spv1.4)
 add_executable( jet  "./src/jet.cpp")
 set( CMAKE_CXX_FLAGS_DEBUG_INIT "-fstack-protector" )
-AutoSPIRV(jet)
-target_link_libraries( jet LavaCake )
-
+target_link_libraries( jet LavaCake glfw glm::glm imgui_glfw )

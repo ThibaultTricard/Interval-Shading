@@ -1,277 +1,287 @@
-#define LAVACAKE_WINDOW_MANAGER_GLFW
-#include <LavaCake/Framework/Framework.h> 
-#include <LavaCake/Helpers/ABBox.h> 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <LavaCake/GLFWSupport.hpp>
+#include <LavaCake/CommandBuffer.hpp>
+#include <LavaCake/DynamicRendering.hpp>
+#include <LavaCake/GraphicPipeline.hpp>
+#include <LavaCake/Buffer.hpp>
+#include <LavaCake/UniformBuffer.hpp>
+#include <LavaCake/DescriptorSet.hpp>
+#include <LavaCake/DescriptorPool.hpp>
 
 #include "utils/trackball.h"
 #include "utils/Tetmesh.h"
 
-using namespace LavaCake;
-using namespace LavaCake::Geometry;
-using namespace LavaCake::Framework;
 #include <chrono>
+#include <iostream>
 
 
+glm::dvec2 mousepos = glm::dvec2(0.0, 0.0);
 
-vec2d mousepos = vec2d({0,0});
-
-vec2d get_mouse_mouvement(GLFWwindow* window){
-  
-  vec2d new_mousepos;
-  glfwGetCursorPos(window, &new_mousepos[0], &new_mousepos[1]);
-  auto delta = new_mousepos - mousepos;
-  mousepos = vec2d(new_mousepos.data);
-  return delta;
+glm::dvec2 get_mouse_mouvement(GLFWwindow* window) {
+    glm::dvec2 new_mousepos;
+    glfwGetCursorPos(window, &new_mousepos.x, &new_mousepos.y);
+    auto delta = new_mousepos - mousepos;
+    mousepos = new_mousepos;
+    return delta;
 }
 
 double scroll = 0;
 bool scrolled = false;
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
-{
-  if(yoffset!=0){
-    scroll = -yoffset * 10.0f;
-    scrolled = true;
-  }
-
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    (void)window; (void)xoffset;
+    if (yoffset != 0) {
+        scroll = -yoffset * 10.0;
+        scrolled = true;
+    }
 }
 
-
-vec3f get_movement(GLFWwindow* window){
-    vec3f translation;
-    int state = glfwGetKey(window, GLFW_KEY_UP);
-    if (state == GLFW_PRESS)
-    {
-        translation = translation + vec3f({0.0f,0.0f,-1.0});
-    }
-    state = glfwGetKey(window, GLFW_KEY_DOWN);
-    if (state == GLFW_PRESS)
-    {
-        translation = translation + vec3f({0.0f,0.0f,1.0});
-    }
-
-    state = glfwGetKey(window, GLFW_KEY_LEFT);
-    if (state == GLFW_PRESS)
-    {
-        translation = translation + vec3f({-1.0f,0.0f,0.0});
-    }
-    state = glfwGetKey(window, GLFW_KEY_RIGHT);
-    if (state == GLFW_PRESS)
-    {
-       translation = translation +  vec3f({1.0f,0.0f,0.0});
-    }
-
-    state = glfwGetKey(window, GLFW_KEY_SPACE);
-    if (state == GLFW_PRESS)
-    {
-       translation = translation +  vec3f({0.0f,-1.0f,0.0});
-    }
-
-    state = glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL);
-    if (state == GLFW_PRESS)
-    {
-       translation = translation +  vec3f({0.0f,1.0f,0.0});
-    }
-
+glm::vec3 get_movement(GLFWwindow* window) {
+    glm::vec3 translation(0.0f);
+    if (glfwGetKey(window, GLFW_KEY_UP)            == GLFW_PRESS) translation += glm::vec3( 0.0f,  0.0f, -1.0f);
+    if (glfwGetKey(window, GLFW_KEY_DOWN)          == GLFW_PRESS) translation += glm::vec3( 0.0f,  0.0f,  1.0f);
+    if (glfwGetKey(window, GLFW_KEY_LEFT)          == GLFW_PRESS) translation += glm::vec3(-1.0f,  0.0f,  0.0f);
+    if (glfwGetKey(window, GLFW_KEY_RIGHT)         == GLFW_PRESS) translation += glm::vec3( 1.0f,  0.0f,  0.0f);
+    if (glfwGetKey(window, GLFW_KEY_SPACE)         == GLFW_PRESS) translation += glm::vec3( 0.0f, -1.0f,  0.0f);
+    if (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS) translation += glm::vec3( 0.0f,  1.0f,  0.0f);
     return translation;
 }
 
-
 std::string root = PROJECT_ROOT;
 
-
-
 int main() {
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    GLFWwindow* window = glfwCreateWindow(1920, 1080, "Interval Shading - Single Tetrahedron", nullptr, nullptr);
+    glfwSetScrollCallback(window, scroll_callback);
 
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-	GLFWwindow* window = glfwCreateWindow(1920, 1080, "Interval Shading - Single Tetrahedron", nullptr, nullptr);
-	glfwSetScrollCallback(window, scroll_callback);
-	ErrorCheck::printError(true, 5);
-	
-	GLFWSurfaceInitialisator surfaceInitialisator(window);
-	Device* device = Device::getDevice();
-	device->enableMeshShader();
-	VkPhysicalDeviceFeatures feature;
-	device->initDevices(1, 1, surfaceInitialisator);
+    auto surfaceConfig = LavaCake::GLFW::createSurfaceConfig(window);
 
-	SwapChain* swapChain = SwapChain::getSwapChain();
-	swapChain->init();
-	
-	std::vector<vec4f> vertices;
-	vertices.push_back(vec4f({sqrtf(8.0f/9.0f), 0.0f, -1.0f/3.0f,1.0}));
-	vertices.push_back(vec4f({-sqrtf(2.0f/9.0f), sqrtf(2.0f/3.0f), -1.0f/3.0f,1.0}));
-	vertices.push_back(vec4f({-sqrtf(2.0f/9.0f), -sqrtf(2.0f/3.0f), -1.0f/3.0f,1.0}));
-	vertices.push_back(vec4f({0.0,0.0,1.0,1.0}));
+    vk::PhysicalDeviceVulkan12Features vulkan12{};
+    vulkan12.scalarBlockLayout                                    = VK_TRUE;
+    vulkan12.descriptorIndexing                                   = VK_TRUE;
+    vulkan12.shaderSampledImageArrayNonUniformIndexing            = VK_TRUE;
+    vulkan12.shaderStorageBufferArrayNonUniformIndexing           = VK_TRUE;
+    vulkan12.shaderUniformBufferArrayNonUniformIndexing           = VK_TRUE;
+    vulkan12.runtimeDescriptorArray                               = VK_TRUE;
+    vulkan12.descriptorBindingPartiallyBound                      = VK_TRUE;
+    vulkan12.descriptorBindingSampledImageUpdateAfterBind         = VK_TRUE;
+    vulkan12.descriptorBindingStorageBufferUpdateAfterBind        = VK_TRUE;
+    vulkan12.descriptorBindingUniformBufferUpdateAfterBind        = VK_TRUE;
+    vulkan12.descriptorBindingVariableDescriptorCount             = VK_TRUE;
+    vulkan12.bufferDeviceAddress                                  = VK_TRUE;
+    vulkan12.timelineSemaphore                                    = VK_TRUE;
+    vulkan12.hostQueryReset                                       = VK_TRUE;
 
-	std::vector<vec4u> indices;
-	indices.push_back(vec4u({0,1,2,3}));
-	Tetmesh mesh = Tetmesh(vertices,indices);
+    vk::PhysicalDeviceMaintenance4Features maintenance4Features{};
+    maintenance4Features.maintenance4 = VK_TRUE;
 
-	CommandBuffer  commandBuffer;
-	std::shared_ptr<Semaphore> semaphore = std::make_shared<Semaphore>();
+    vk::PhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures{};
+    meshShaderFeatures.meshShader = VK_TRUE;
+    meshShaderFeatures.taskShader = VK_TRUE;
 
-	GraphicQueue graphicQueue = device->getGraphicQueue(0);
-	PresentationQueue presentQueue = device->getPresentQueue();
+    LavaCake::Device device = LavaCake::Device::Builder()
+        .setGraphicQueueCount(1)
+        .enableSamplerAnisotropy(true)
+        .enableFillModeNonSolid(true)
+        .addFeature(vulkan12)
+        .addFeature(maintenance4Features)
+        .addFeature(meshShaderFeatures)
+        .addDeviceExtension(VK_EXT_MESH_SHADER_EXTENSION_NAME)
+        .preferDiscreteGPU()
+        .setSurface(surfaceConfig)
+        .build();
+    {
+        LavaCake::CommandBuffer cmdBuffer(device, true);
 
-	MeshShaderModule meshShader(root+"/shaders/singleTet/mesh.mesh.spv");
-	FragmentShaderModule fragmentShader(root+"/shaders/singleTet/interval.frag.spv");
-	
+        // Hardcoded single tetrahedron
+        std::vector<glm::vec4> vertices;
+        vertices.push_back(glm::vec4( sqrtf(8.0f/9.0f), 0.0f,              -1.0f/3.0f, 1.0f));
+        vertices.push_back(glm::vec4(-sqrtf(2.0f/9.0f), sqrtf(2.0f/3.0f), -1.0f/3.0f, 1.0f));
+        vertices.push_back(glm::vec4(-sqrtf(2.0f/9.0f),-sqrtf(2.0f/3.0f), -1.0f/3.0f, 1.0f));
+        vertices.push_back(glm::vec4( 0.0f,              0.0f,              1.0f,       1.0f));
 
-	VkExtent2D size = swapChain->size();
-	
-	float freq = 2.5f;
+        std::vector<glm::uvec4> indices;
+        indices.push_back(glm::uvec4(0, 1, 2, 3));
+        Tetmesh mesh(vertices, indices);
 
-	Trackball trackball(vec3f({0.0f,-2.f,0.0f}),vec3f({0.0f,0.0f,0.0f}),vec3f({0.0f,0.0f,-1.0f}));
-	trackball.m_moveSpeed = 0.02f;
+        // Trackball setup
+        float freq = 2.5f;
+        Trackball trackball(
+            glm::vec3(0.0f, -2.0f, 0.0f),
+            glm::vec3(0.0f,  0.0f, 0.0f),
+            glm::vec3(0.0f,  0.0f, -1.0f)
+        );
+        trackball.m_moveSpeed = 0.02f;
+        trackball.m_rotationSpeed = 3.14159265f * 2.0f / freq;
 
+        auto view = trackball.getview();
 
-	trackball.m_rotationSpeed = 3.14159265f*2.0 / freq;
-	
-	auto view = trackball.getview();
+        // Uniform buffer
+        LavaCake::UniformBuffer viewproj(device);
+        glm::mat4 model = glm::identity<glm::mat4>();
+        viewproj.addVariable("model", model);
+        viewproj.addVariable("view", view);
 
+        float nearPlane = 0.1f;
+        vk::Extent2D swapExtent = device.getSwapchainExtent();
+        glm::mat4 perspective = glm::perspectiveLH(glm::radians(80.0f),
+            float(swapExtent.width) / float(swapExtent.height), nearPlane, 10.0f);
+        perspective[1][1] *= -1.0f;
+        viewproj.addVariable("perpective", perspective);
+        viewproj.addVariable("nearPlane", nearPlane);
+        viewproj.addVariable("tetnumber", int(mesh.m_indices.size()));
+        viewproj.end();
 
-	UniformBuffer viewproj;
+        // Storage buffers
+        LavaCake::Buffer vertexBuffer(device, mesh.m_vertices, vk::BufferUsageFlagBits::eStorageBuffer);
+        LavaCake::Buffer indicesBuffer(device, mesh.m_indices,  vk::BufferUsageFlagBits::eStorageBuffer);
 
-	auto model = Identity();
-	viewproj.addVariable("model", transpose(model));
-	viewproj.addVariable("view", transpose(view));
+        // Descriptor layout / pool / set
+        LavaCake::DescriptorSetLayout meshDescLayout = LavaCake::DescriptorSetLayout::Builder(device)
+            .addUniformBuffer(0, vk::ShaderStageFlagBits::eMeshEXT | vk::ShaderStageFlagBits::eFragment)
+            .addStorageBuffer(1, vk::ShaderStageFlagBits::eMeshEXT)
+            .addStorageBuffer(2, vk::ShaderStageFlagBits::eMeshEXT)
+            .build();
 
-	float nearPlane = 0.1f;
-	auto perspective = PreparePerspectiveProjectionMatrix(float(size.width)/float(size.height),80.0f,nearPlane,10.0f);
-  	perspective = transpose(perspective);
-  	viewproj.addVariable("perpective", perspective );
-	viewproj.addVariable("nearPlane", nearPlane );
-	viewproj.addVariable("tetnumber", int(mesh.m_indices.size()) );
+        LavaCake::DescriptorPool meshDescPool = LavaCake::DescriptorPool::Builder(device.getDevice())
+            .addUniformBuffers(1)
+            .addStorageBuffers(2)
+            .setMaxSets(1)
+            .build();
 
-	viewproj.end();
-	
-	vec2u res = vec2u({1920, 1080});
-	Buffer vertexBuffer(graphicQueue, commandBuffer, mesh.m_vertices, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_FORMAT_UNDEFINED);
-	Buffer indicesBuffer(graphicQueue, commandBuffer, mesh.m_indices, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_FORMAT_UNDEFINED);
+        vk::DescriptorSet meshDescSet = meshDescPool.allocate(meshDescLayout);
 
-	DescriptorSet set;
-	set.addUniformBuffer(viewproj, VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-	set.addBuffer(vertexBuffer, VK_SHADER_STAGE_MESH_BIT_EXT , 1);
-	set.addBuffer(indicesBuffer, VK_SHADER_STAGE_MESH_BIT_EXT , 2);
-	set.compile();
+        LavaCake::DescriptorSetUpdater(device, meshDescSet)
+            .bindUniformBuffer(0, viewproj, 0, viewproj.size())
+            .bindStorageBuffer(1, vertexBuffer)
+            .bindStorageBuffer(2, indicesBuffer)
+            .update();
 
-	GraphicPipeline graphicPipeline(
-		vec3f({ 0,0,0 }), 
-		vec3f({ float(res[0]),float(res[1]),1.0f }), 
-		vec2f({ 0,0 }), 
-		vec2f({ float(res[0]),float(res[1]) })
-	);
+        // Additive blend (ADD for both color and alpha)
+        vk::PipelineColorBlendAttachmentState meshBlend{};
+        meshBlend.blendEnable         = VK_TRUE;
+        meshBlend.srcColorBlendFactor = vk::BlendFactor::eOne;
+        meshBlend.dstColorBlendFactor = vk::BlendFactor::eOne;
+        meshBlend.colorBlendOp        = vk::BlendOp::eAdd;
+        meshBlend.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+        meshBlend.dstAlphaBlendFactor = vk::BlendFactor::eOne;
+        meshBlend.alphaBlendOp        = vk::BlendOp::eAdd;
+        meshBlend.colorWriteMask      = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
+                                      | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
 
-	graphicPipeline.setMeshModule(meshShader);
-	graphicPipeline.setFragmentModule(fragmentShader);
-	graphicPipeline.setDescriptorLayout(set.getLayout());
-	//graphicPipeline.setPolygonMode(VK_POLYGON_MODE_LINE);
-	//graphicPipeline.setLineWidth(2.0f);
-	graphicPipeline.setCullMode(VK_CULL_MODE_NONE);
-	graphicPipeline.setVerticesInfo({},{},VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        // Mesh pipeline rendering directly to swapchain
+        LavaCake::GraphicsPipeline graphicPipeline = LavaCake::GraphicsPipeline::Builder(device)
+            .addShaderFromFile(root + "src/shader/singleTet/mesh.mesh",
+                               vk::ShaderStageFlagBits::eMeshEXT,
+                               LavaCake::ShadingLanguage::eGLSL)
+            .addShaderFromFile(root + "src/shader/singleTet/interval.frag",
+                               vk::ShaderStageFlagBits::eFragment,
+                               LavaCake::ShadingLanguage::eGLSL)
+            .addColorAttachmentFormat(device.getSwapchainFormat())
+            .setColorBlendAttachments({meshBlend})
+            .setCullMode(vk::CullModeFlagBits::eNone)
+            .setDepthTest(false, false)
+            .addDescriptorSetLayout(meshDescLayout)
+            .build();
 
+        // Per-swapchain-image semaphores
+        size_t swapchainImageCount = device.getSwapChainImagesNumber();
+        vk::SemaphoreCreateInfo semaphoreInfo;
+        std::vector<vk::Semaphore> imageAvailableSemaphores(swapchainImageCount);
+        std::vector<vk::Semaphore> renderFinishedSemaphores(swapchainImageCount);
+        for (size_t i = 0; i < swapchainImageCount; i++) {
+            imageAvailableSemaphores[i] = device.getDevice().createSemaphore(semaphoreInfo);
+            renderFinishedSemaphores[i] = device.getDevice().createSemaphore(semaphoreInfo);
+        }
 
-	RenderPass renderPass;
+        uint32_t currentFrame = 0;
 
-	SubPassAttachments SA;
-	
-	SA.addSwapChainImageAttachment(swapChain->imageFormat());
-	SA.m_attachments[0].m_blendState = {
-		VK_TRUE,                                       	// VkBool32                 blendEnable
-		VK_BLEND_FACTOR_ONE,                      		// VkBlendFactor            srcColorBlendFactor
-		VK_BLEND_FACTOR_ONE,            			    // VkBlendFactor            dstColorBlendFactor
-		VK_BLEND_OP_ADD,                                // VkBlendOp                colorBlendOp
-		VK_BLEND_FACTOR_ONE,           					// VkBlendFactor            srcAlphaBlendFactor
-		VK_BLEND_FACTOR_ONE,                            // VkBlendFactor            dstAlphaBlendFactor
-		VK_BLEND_OP_ADD,                                // VkBlendOp                colorBlendOp
-		VK_COLOR_COMPONENT_R_BIT |                      // VkColorComponentFlags    colorWriteMask
-		VK_COLOR_COMPONENT_G_BIT |
-		VK_COLOR_COMPONENT_B_BIT |
-		VK_COLOR_COMPONENT_A_BIT
-	};
-	
-	uint32_t passNumber = renderPass.addSubPass(SA);
-	graphicPipeline.setSubPassNumber(passNumber);
+        // Main render loop
+        while (!glfwWindowShouldClose(window)) {
+            cmdBuffer.waitForCompletion();
+            cmdBuffer.reset();
+            glfwPollEvents();
 
-	uint64_t start = 0; 
-	renderPass.compile();
+            // Camera input
+            trackball.move(get_movement(window));
 
-	graphicPipeline.compile(renderPass.getHandle(),SA);
+            auto dmov = get_mouse_mouvement(window);
+            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+                float dx = float(dmov.x) / float(swapExtent.width)  * 2.0f * 3.14159265f;
+                float dy = float(dmov.y) / float(swapExtent.width) * 2.0f * 3.14159265f;
+                trackball.rotate(glm::vec2(dx, dy));
+            }
 
-	FrameBuffer frameBuffer =  FrameBuffer(res[0], res[1]);
-	renderPass.prepareOutputFrameBuffer(graphicQueue, commandBuffer, frameBuffer);
+            if (scrolled) {
+                scrolled = false;
+                trackball.zoom(float(scroll));
+            }
 
-	commandBuffer.wait();
-	commandBuffer.resetFence();
+            view = trackball.getview();
+            viewproj.setVariable("view", view);
 
-	
-	while (!glfwWindowShouldClose(window)) {
-		
-		commandBuffer.wait();
-		glfwPollEvents();
+            // Acquire swapchain image
+            LavaCake::SwapChainImage& swapchainImage =
+                device.aquireSwapChainImage(imageAvailableSemaphores[currentFrame]);
 
-		
-		const SwapChainImage& image = swapChain->acquireImage();
-		std::vector<waitSemaphoreInfo> waitSemaphoreInfos = {};
-		waitSemaphoreInfos.push_back({
-			image.getSemaphore(),                           // VkSemaphore            Semaphore
-			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT	  // VkPipelineStageFlags   WaitingStage
-		});
-		
-		auto translation = get_movement(window);
-		trackball.move(translation);
+            // Begin recording
+            cmdBuffer.begin(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+            vk::CommandBuffer cmd = cmdBuffer.getCommandBuffer();
 
-		
-		int state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-	
+            viewproj.update(cmd);
 
-		auto dmov = get_mouse_mouvement(window);
-		if (state == GLFW_PRESS){
+            // Render mesh directly to swapchain
+            swapchainImage.prepareForAttachementBarrier(cmd);
+            {
+                auto ctx = LavaCake::DynamicRenderingContext::Builder()
+                    .setRenderArea(device.getSwapchainExtent())
+                    .addColorAttachment(swapchainImage,
+                        vk::ClearColorValue(std::array<float,4>{0.0f, 0.0f, 0.0f, 1.0f}))
+                    .begin(cmd);
 
-			dmov[0] = dmov[0]/float(size.width) *2.0 * 3.14159265;
-			dmov[1] = dmov[1]/float(size.width) *2.0 * 3.14159265;
-			trackball.rotate(vec2f({float(dmov[0]),float(dmov[1])}));
-		}
+                ctx.setDefaultViewportScissor(cmd);
+                graphicPipeline.bind(cmd);
+                graphicPipeline.bindDescriptorSets(cmd, {meshDescSet});
+                cmd.drawMeshTasksEXT(uint32_t(mesh.m_indices.size()), 1, 1);
+                ctx.end(cmd);
+            }
+            swapchainImage.prepareForPresentBarrier(cmd);
+            cmdBuffer.end();
 
+            // Submit
+            vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+            vk::SubmitInfo submitInfo;
+            submitInfo.waitSemaphoreCount   = 1;
+            submitInfo.pWaitSemaphores      = &imageAvailableSemaphores[currentFrame];
+            submitInfo.pWaitDstStageMask    = &waitStage;
+            submitInfo.commandBufferCount   = 1;
+            vk::CommandBuffer rawCmd        = cmdBuffer.getCommandBuffer();
+            submitInfo.pCommandBuffers      = &rawCmd;
+            submitInfo.signalSemaphoreCount = 1;
+            submitInfo.pSignalSemaphores    = &renderFinishedSemaphores[currentFrame];
 
-		if(scrolled){
-			scrolled = false;
-			trackball.zoom(scroll);
-		}
-	
-		
-		view = trackball.getview();
-    	viewproj.setVariable("view",transpose(view));
+            device.getGraphicQueue(0).submit(submitInfo, cmdBuffer.getFence());
+            cmdBuffer.markSubmitted();
 
+            device.presentImage(swapchainImage, {renderFinishedSemaphores[currentFrame]});
+            currentFrame = (currentFrame + 1) % swapchainImageCount;
+        }
 
-		commandBuffer.beginRecord();
+        device.waitForAllCommands();
 
-        renderPass.setSwapChainImage(frameBuffer, image);
+        for (size_t i = 0; i < swapchainImageCount; i++) {
+            device.getDevice().destroySemaphore(imageAvailableSemaphores[i]);
+            device.getDevice().destroySemaphore(renderFinishedSemaphores[i]);
+        }
+    }
 
-		viewproj.update(commandBuffer);
-		renderPass.begin(commandBuffer, 
-			frameBuffer, 
-			vec2u({ 0,0 }), 
-			vec2u({ uint32_t (res[0]), uint32_t (res[1]) }), 
-			{ { 0.0f, 0.0f, 0.0f, 1.0f } });
-
-		graphicPipeline.bindPipeline(commandBuffer);
-		graphicPipeline.bindDescriptorSet(commandBuffer, set);
-
-		drawMeshTasks(commandBuffer, mesh.m_indices.size() ,1,1);
-		renderPass.end(commandBuffer);
-
-
-		commandBuffer.endRecord();
-		commandBuffer.submit(graphicQueue, waitSemaphoreInfos, { semaphore });
-
-		swapChain->presentImage(presentQueue, image, { semaphore });
-
-		commandBuffer.wait();
-		commandBuffer.resetFence();
-
-
-		
-	}
-	device->waitForAllCommands();
+    device.releaseDevice();
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return 0;
 }
